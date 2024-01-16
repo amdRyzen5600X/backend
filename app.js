@@ -1,5 +1,6 @@
 const path = require('path')
 const express = require('express')
+const bcrypt = require('bcryptjs')
 require('dotenv').config()
 const { Client } = require('pg')
 const client = new Client({
@@ -36,7 +37,7 @@ app.get("/login", (req, res) => {
 app.post('/auth/register', (req, res) => {
     const { username, password } = req.body
 
-    client.query('SELECT username FROM user_table WHERE username = $1', [username], async (error, result) => {
+    client.query('SELECT username FROM users WHERE username = $1', [username], async (error, result) => {
         if(error){
             console.log(error)
         }
@@ -45,7 +46,8 @@ app.post('/auth/register', (req, res) => {
                 message: 'This username is already in use'
             })
         } 
-        client.query('INSERT INTO user_table (username, password) VALUES($1, $2)', [username, password], (err, result1)=>{
+        const hPassword = bcrypt.hashSync(password, 8)
+        client.query('INSERT INTO users (username, password) VALUES($1, $2)', [username, hPassword], (err, result1)=>{
             if(err){
                 console.log(err)
             } else {
@@ -59,7 +61,7 @@ app.post('/auth/register', (req, res) => {
 
 app.post('/auth/login', (req, res)=>{
     const { username, password } = req.body
-    client.query('SELECT username, password FROM user_table WHERE username = $1', [username], async (err, result)=>{
+    client.query('SELECT username, password FROM users WHERE username = $1', [username], async (err, result)=>{
         if(err){
             console.log(err)
         }
@@ -68,15 +70,11 @@ app.post('/auth/login', (req, res)=>{
                 message: 'no such a user'
             })
         } 
-        if(result.rows[0].password == password){
-            console.log(result.rows[0].password)
-            console.log(password)
+        if(bcrypt.compare(password, result.rows[0].password)){
             return res.render('index', {
                 username: username
             })
         } else {
-            console.log(result.rows[0].password)
-            console.log(password)
             return res.render('login', {
                 message: 'wrong password'
             })
